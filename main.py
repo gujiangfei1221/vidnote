@@ -5,9 +5,10 @@
 输入一个短视频文件，自动：
 1. 提取音频（ffmpeg）
 2. 语音转文字（whisper.cpp + Metal 加速）
-3. 文本清洗
+3. 文本清洗 + 繁简转换
 4. AI 知识萃取（硅基流动 DeepSeek-V3.2）
-5. 输出 Markdown 总结
+5. 关键帧截图（ffmpeg）
+6. 输出图文并茂的 Markdown 笔记（支持 Obsidian）
 
 使用方法：
     python main.py --input video.mp4
@@ -16,6 +17,7 @@
 """
 
 import argparse
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -30,11 +32,37 @@ from config import (
     WHISPER_MODEL_PATH,
     SUPPORTED_VIDEO_EXTENSIONS,
     PROJECT_ROOT,
+    OBSIDIAN_VAULT_PATH,
+    OBSIDIAN_NOTE_DIR,
+    OBSIDIAN_ATTACHMENT_DIR,
 )
 from processor.audio import extract_audio
-from processor.transcribe import transcribe
+from processor.transcribe import transcribe, transcribe_with_timestamps
 from processor.clean import clean_transcript
-from processor.summarize import summarize
+from processor.summarize import summarize, extract_keyframes
+from processor.keyframes import capture_keyframes
+
+
+def _format_seconds(seconds: float) -> str:
+    """将秒数格式化为 HH:MM:SS。"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _build_timestamped_text(segments: list[dict]) -> str:
+    """将分段数据构建为带时间戳的文本。"""
+    lines = []
+    for seg in segments:
+        ts = _format_seconds(seg["start"])
+        lines.append(f"[{ts}] {seg['text']}")
+    return "\n".join(lines)
+
+
+def _build_plain_text(segments: list[dict]) -> str:
+    """将分段数据合并为纯文本。"""
+    return " ".join(seg["text"] for seg in segments)
 
 
 def process_video(
@@ -72,45 +100,77 @@ def process_video(
     wav_path = extract_audio(str(video), wav_path)
     print()
 
-    # ─── Step 2: 语音转文字 ───
-    raw_text = transcribe(wav_path, model_path=model_path, language=language)
+    # ─── Step 2: 带时间戳的语音转文字 ───
+    segments = transcribe_with_timestamps(wav_path, model_path=model_path, language=language)
     print()
 
     # ─── Step 3: 文本清洗 ───
-    clean_text = clean_transcript(raw_text)
+    plain_text = _build_plain_text(segments)
+    clean_text = clean_transcript(plain_text)
+
+    # 构建带时间戳的清洗文本（用于关键帧提取）
+    timestamped_text = _build_timestamped_text(segments)
+    # 对时间戳文本也做繁简转换
+    from opencc import OpenCC
+    _t2s = OpenCC("t2s")
+    timestamped_text = _t2s.convert(timestamped_text)
     print()
 
-    # 保存转录文本（用于调试）
+    # 保存转录文本
     transcript_path = out_dir / f"{video.stem}_转录.txt"
     transcript_path.write_text(clean_text, encoding="utf-8")
     print(f"📝 转录文本已保存: {transcript_path.name}")
+
+    # 保存带时间戳的转录（调试用）
+    ts_path = out_dir / f"{video.stem}_时间轴.txt"
+    ts_path.write_text(timestamped_text, encoding="utf-8")
+    print(f"📝 时间轴文本已保存: {ts_path.name}")
 
     # ─── Step 4: AI 总结 ───
     summary = summarize(clean_text)
     print()
 
-    # ─── Step 5: 输出结果 ───
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    md_filename = f"{video.stem}_总结_{timestamp}.md"
+    # ─── Step 5: 关键帧提取 ───
+    keyframes_data = extract_keyframes(timestamped_text)
+    print()
+
+    # ─── Step 6: 关键帧截图 ───
+    screenshots_dir = out_dir / f"{video.stem}_screenshots"
+    enriched_keyframes = []
+    if keyframes_data:
+        enriched_keyframes = capture_keyframes(
+            video_path=str(video),
+            keyframes=keyframes_data,
+            output_dir=str(screenshots_dir),
+        )
+        print()
+
+    # ─── Step 7: 生成 Markdown ───
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    md_filename = f"{video.stem}_总结_{timestamp_str}.md"
     md_path = out_dir / md_filename
 
-    # 构建完整的 Markdown 文档
-    md_content = (
-        f"# 📹 {video.stem}\n\n"
-        f"> 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n"
-        f"> 源文件: `{video.name}`  \n"
-        f"> 模型: whisper ({Path(model_path or WHISPER_MODEL_PATH).stem.replace('ggml-', '')})\n\n"
-        f"---\n\n"
-        f"{summary}\n\n"
-        f"---\n\n"
-        f"## 📜 原始转录文本\n\n"
-        f"<details>\n"
-        f"<summary>点击展开完整转录</summary>\n\n"
-        f"{clean_text}\n\n"
-        f"</details>\n"
+    md_content = _build_markdown(
+        video=video,
+        model_path=model_path,
+        summary=summary,
+        keyframes=enriched_keyframes,
+        clean_text=clean_text,
+        use_obsidian_links=False,  # output 目录用标准 Markdown
     )
-
     md_path.write_text(md_content, encoding="utf-8")
+
+    # ─── Step 8: 同步到 Obsidian（如果配置了）───
+    obsidian_md_path = None
+    if OBSIDIAN_VAULT_PATH and Path(OBSIDIAN_VAULT_PATH).is_dir():
+        obsidian_md_path = _sync_to_obsidian(
+            video=video,
+            model_path=model_path,
+            summary=summary,
+            keyframes=enriched_keyframes,
+            clean_text=clean_text,
+            screenshots_dir=screenshots_dir,
+        )
 
     elapsed = time.time() - start_time
 
@@ -118,9 +178,11 @@ def process_video(
     print(f"🎉 处理完成!")
     print(f"   耗时: {elapsed:.1f} 秒")
     print(f"   总结文件: {md_path}")
+    if obsidian_md_path:
+        print(f"   Obsidian: {obsidian_md_path}")
     print("═" * 60)
 
-    # 在终端显示总结预览
+    # 终端显示总结预览
     print(f"\n{'─' * 40}")
     print("📋 总结预览:")
     print(f"{'─' * 40}")
@@ -133,6 +195,119 @@ def process_video(
         if wav_file.exists():
             wav_file.unlink()
             print(f"🗑️  已清理临时文件: {wav_file.name}")
+
+    return str(md_path)
+
+
+def _build_markdown(
+    video: Path,
+    model_path: str | None,
+    summary: str,
+    keyframes: list[dict],
+    clean_text: str,
+    use_obsidian_links: bool = False,
+    attachment_subdir: str = "",
+) -> str:
+    """构建 Markdown 文档内容。"""
+    model_name = Path(model_path or WHISPER_MODEL_PATH).stem.replace("ggml-", "")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    lines = [
+        f"# 📹 {video.stem}\n",
+        f"> 生成时间: {now}  ",
+        f"> 源文件: `{video.name}`  ",
+        f"> 模型: whisper ({model_name})\n",
+        "---\n",
+        summary,
+        "",
+    ]
+
+    # 关键帧部分
+    if keyframes:
+        lines.append("\n---\n")
+        lines.append("## 📸 关键时刻\n")
+
+        for i, kf in enumerate(keyframes, 1):
+            ts = kf.get("time", "")
+            title = kf.get("title", "")
+            desc = kf.get("summary", "")
+            img_filename = kf.get("image_filename")
+
+            lines.append(f"### 🔑 {i}. {title}")
+            lines.append(f"> **{desc}**\n")
+
+            if img_filename:
+                if use_obsidian_links:
+                    # Obsidian 双链 wikilink 格式
+                    lines.append(f"![[{attachment_subdir}/{img_filename}]]")
+                else:
+                    # 标准 Markdown 图片引用
+                    lines.append(f"![{title}]({video.stem}_screenshots/{img_filename})")
+
+            lines.append(f"*⏱️ 时间戳: {ts}*\n")
+
+    # 原始转录
+    lines.extend([
+        "\n---\n",
+        "## 📜 原始转录文本\n",
+        "<details>",
+        "<summary>点击展开完整转录</summary>\n",
+        clean_text,
+        "\n</details>",
+    ])
+
+    return "\n".join(lines)
+
+
+def _sync_to_obsidian(
+    video: Path,
+    model_path: str | None,
+    summary: str,
+    keyframes: list[dict],
+    clean_text: str,
+    screenshots_dir: Path,
+) -> str | None:
+    """
+    将笔记和截图同步到 Obsidian Vault。
+    """
+    vault_path = Path(OBSIDIAN_VAULT_PATH)
+    note_dir = vault_path / OBSIDIAN_NOTE_DIR
+    note_dir.mkdir(parents=True, exist_ok=True)
+
+    # 附件目录
+    attachment_base = vault_path / OBSIDIAN_ATTACHMENT_DIR
+    attachment_dir = attachment_base / video.stem
+    attachment_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"📂 同步到 Obsidian Vault...")
+    print(f"   笔记目录: {note_dir}")
+    print(f"   附件目录: {attachment_dir}")
+
+    # 复制截图到 Obsidian 附件目录
+    if screenshots_dir.is_dir():
+        for img_file in screenshots_dir.glob("*.jpg"):
+            dest = attachment_dir / img_file.name
+            shutil.copy2(img_file, dest)
+
+    # 构建 Obsidian 相对路径
+    # Obsidian wikilink 使用相对于 vault 的路径
+    rel_attachment = f"{OBSIDIAN_ATTACHMENT_DIR}/{video.stem}"
+
+    # 生成 Obsidian 格式的 Markdown
+    md_content = _build_markdown(
+        video=video,
+        model_path=model_path,
+        summary=summary,
+        keyframes=keyframes,
+        clean_text=clean_text,
+        use_obsidian_links=True,
+        attachment_subdir=rel_attachment,
+    )
+
+    md_path = note_dir / f"{video.stem}.md"
+    md_path.write_text(md_content, encoding="utf-8")
+
+    print(f"✅ Obsidian 笔记已同步: {md_path.name}")
 
     return str(md_path)
 
@@ -203,11 +378,14 @@ def main():
             sys.exit(1)
         else:
             print("✅ 所有依赖均已就绪!")
+            if OBSIDIAN_VAULT_PATH:
+                print(f"📂 Obsidian Vault: {OBSIDIAN_VAULT_PATH}")
+            else:
+                print("ℹ️  Obsidian 未配置（可选，在 .env 中设置 OBSIDIAN_VAULT_PATH）")
             sys.exit(0)
 
     # ─── 监听模式 ───
     if args.watch:
-        # 先检查依赖
         errors = check_dependencies()
         if errors:
             print("❌ 依赖检查未通过:\n")
@@ -233,7 +411,6 @@ def main():
         print("\n❌ 请指定输入视频文件: --input video.mp4")
         sys.exit(1)
 
-    # 检查依赖
     errors = check_dependencies()
     if errors:
         print("❌ 依赖检查未通过:\n")
@@ -242,7 +419,6 @@ def main():
             print()
         sys.exit(1)
 
-    # 验证输入文件
     input_path = Path(args.input).resolve()
     if not input_path.is_file():
         print(f"❌ 视频文件不存在: {input_path}")
@@ -254,7 +430,6 @@ def main():
             f"支持的格式: {', '.join(SUPPORTED_VIDEO_EXTENSIONS)}"
         )
 
-    # 解析模型路径
     model_path = _resolve_model_path(args.model)
 
     try:
@@ -275,11 +450,9 @@ def _resolve_model_path(model_name: str | None) -> str | None:
     if model_name is None:
         return None
 
-    # 如果已经是完整路径
     if Path(model_name).is_file():
         return model_name
 
-    # 尝试在 models/ 目录下查找
     model_path = PROJECT_ROOT / "models" / f"ggml-{model_name}.bin"
     if model_path.is_file():
         return str(model_path)
