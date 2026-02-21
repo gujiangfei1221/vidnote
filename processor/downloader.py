@@ -25,8 +25,8 @@ def _get_ytdlp_path() -> str:
     python_dir = Path(sys.executable).parent
     candidates = [
         str(python_dir / "yt-dlp"),
-        "/opt/miniconda3/envs/asragent/bin/yt-dlp",
-        "/opt/miniforge3/envs/asragent/bin/yt-dlp",
+        "/opt/miniconda3/envs/vidnote/bin/yt-dlp",
+        "/opt/miniforge3/envs/vidnote/bin/yt-dlp",
         "yt-dlp",
     ]
     for p in candidates:
@@ -173,7 +173,7 @@ def download_video(
     except FileNotFoundError:
         raise RuntimeError(
             "未找到 yt-dlp 命令\n"
-            "请运行: conda activate asragent && pip install yt-dlp"
+            "请运行: conda activate vidnote && pip install yt-dlp"
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError("下载超时")

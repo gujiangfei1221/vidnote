@@ -1,5 +1,5 @@
 {
-    "name": "video-knowledge-extractor",
+    "name": "vidnote",
     "version": "1.0.0",
     "description": "短视频 AI 知识萃取工具",
     "main": "main.js",
@@ -12,7 +12,7 @@
         "build:linux": "electron-builder --linux"
     },
     "build": {
-        "appId": "com.asragent.videoknowledgeextractor",
+        "appId": "com.vidnote.app",
         "productName": "视频知识萃取器",
         "directories": {
             "output": "dist"

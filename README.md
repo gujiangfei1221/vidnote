@@ -20,7 +20,7 @@
 ## 📁 工程结构
 
 ```
-asragent/
+vidnote/
 ├── main.py                  # CLI 入口，串联完整处理流程
 ├── config.py                # 配置管理（路径、API Key、Prompt 等）
 ├── watcher.py               # 文件夹监听模式（watchdog）
@@ -104,8 +104,8 @@ brew install ffmpeg cmake
 ### 2. 创建 Python 环境
 
 ```bash
-conda create -n asragent python=3.11 -y
-conda activate asragent
+conda create -n vidnote python=3.11 -y
+conda activate vidnote
 pip install -r requirements.txt
 ```
 

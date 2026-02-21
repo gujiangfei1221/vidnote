@@ -96,12 +96,12 @@ function startPython() {
         const homeDir = process.env.HOME || process.env.USERPROFILE;
 
         const candidatePaths = [
-            path.join(homeDir, 'miniconda3', 'envs', 'asragent', 'bin', 'python'),
-            path.join(homeDir, 'miniforge3', 'envs', 'asragent', 'bin', 'python'),
-            path.join(homeDir, 'opt', 'miniconda3', 'envs', 'asragent', 'bin', 'python'),
-            '/opt/miniconda3/envs/asragent/bin/python',
-            '/opt/miniforge3/envs/asragent/bin/python',
-            '/opt/homebrew/Caskroom/miniconda/base/envs/asragent/bin/python',
+            path.join(homeDir, 'miniconda3', 'envs', 'vidnote', 'bin', 'python'),
+            path.join(homeDir, 'miniforge3', 'envs', 'vidnote', 'bin', 'python'),
+            path.join(homeDir, 'opt', 'miniconda3', 'envs', 'vidnote', 'bin', 'python'),
+            '/opt/miniconda3/envs/vidnote/bin/python',
+            '/opt/miniforge3/envs/vidnote/bin/python',
+            '/opt/homebrew/Caskroom/miniconda/base/envs/vidnote/bin/python',
         ];
 
         let pythonPath = 'python3';
