@@ -22,3 +22,18 @@ output/
 # IDE
 .vscode/
 .idea/
+
+# Node.js / Electron
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+app/out/
+app/dist/
+app/resources/
+.DS_Store
+
+# PyInstaller
+dist/
+build/
+*.spec

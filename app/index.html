@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>视频知识萃取器</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <!-- ─── 侧边栏 ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="app-icon">🧠</div>
+      <h1 class="app-title">知识萃取</h1>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="process" id="nav-process">
+        <span class="nav-icon">🎬</span>
+        <span class="nav-label">处理视频</span>
+      </button>
+      <button class="nav-item" data-view="history" id="nav-history">
+        <span class="nav-icon">📚</span>
+        <span class="nav-label">历史记录</span>
+      </button>
+      <button class="nav-item" data-view="settings" id="nav-settings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">设置</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-dot" id="status-dot"></div>
+      <span class="status-text" id="status-text">连接中...</span>
+    </div>
+  </aside>
+
+  <!-- ─── 主内容区 ─── -->
+  <main class="main-content">
+
+    <!-- 处理视频视图 -->
+    <div class="view active" id="view-process">
+      <div class="view-header">
+        <h2>处理视频</h2>
+        <p class="view-subtitle">拖入视频文件，自动提取知识、生成图文笔记</p>
+      </div>
+
+      <!-- 输入方式切换夸 -->
+      <div class="input-tabs">
+        <button class="input-tab active" data-input-mode="file" id="tab-file">📁 本地文件</button>
+        <button class="input-tab" data-input-mode="url" id="tab-url">🔗 视频链接</button>
+      </div>
+
+      <!-- 拖拽上传区 -->
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-zone-content" id="drop-zone-content">
+          <div class="drop-icon">📁</div>
+          <p class="drop-text">拖拽视频文件到这里</p>
+          <p class="drop-hint">支持 MP4, MOV, AVI, MKV, WebM</p>
+          <button class="btn btn-primary" id="btn-select-file">选择文件</button>
+        </div>
+        <div class="file-selected hidden" id="file-selected">
+          <div class="file-info">
+            <span class="file-icon">🎦</span>
+            <div>
+              <p class="file-name" id="file-name"></p>
+              <p class="file-path" id="file-path"></p>
+            </div>
+          </div>
+          <button class="btn btn-remove" id="btn-remove-file" title="移除">✕</button>
+        </div>
+      </div>
+
+      <!-- URL 输入区 -->
+      <div class="url-zone hidden" id="url-zone">
+        <div class="url-input-row">
+          <div class="url-platform-icons">
+            <span title="小红书">💕</span>
+            <span title="哔哩哔哩">🔵</span>
+            <span title="抖音">🎵</span>
+            <span title="YouTube">▶️</span>
+          </div>
+          <input type="url" id="url-input" class="url-input" placeholder="粘贴小红书、B站、抖音、YouTube 等视频链接..."
+            autocomplete="off" spellcheck="false" />
+          <button class="btn btn-primary" id="btn-fetch-info">🔍 解析</button>
+        </div>
+        <!-- 视频信息预览卡片 -->
+        <div class="video-preview-card hidden" id="video-preview-card">
+          <div class="vpc-info">
+            <span class="vpc-title" id="vpc-title"></span>
+            <span class="vpc-meta" id="vpc-meta"></span>
+          </div>
+          <button class="btn btn-accent" id="btn-download-process">⬇️ 下载并处理</button>
+        </div>
+        <!-- 下载进度条 -->
+        <div class="download-bar-wrap hidden" id="download-bar-wrap">
+          <div class="download-bar">
+            <div class="download-bar-fill" id="download-bar-fill"></div>
+          </div>
+          <span class="download-bar-info" id="download-bar-info">准备中...</span>
+        </div>
+      </div>
+
+      <!-- 参数选择 -->
+      <div class="params-row">
+        <div class="param-group">
+          <label>语言</label>
+          <select id="param-language">
+            <option value="auto">自动检测</option>
+            <option value="zh" selected>中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </div>
+        <div class="param-group">
+          <label>Whisper 模型</label>
+          <select id="param-model">
+            <option value="base" selected>base (141MB, 平衡)</option>
+            <option value="tiny">tiny (75MB, 最快)</option>
+            <option value="small">small (466MB, 更准)</option>
+            <option value="large-v3-turbo">large-v3-turbo (最准)</option>
+          </select>
+        </div>
+        <button class="btn btn-accent" id="btn-start" disabled>
+          <span class="btn-icon">▶</span> 开始处理
+        </button>
+      </div>
+
+      <!-- 小流水线 -->
+      <div class="pipeline hidden" id="pipeline">
+        <div class="pipeline-step" data-step="1">
+          <div class="step-indicator">
+            <div class="step-circle">1</div>
+            <div class="step-line"></div>
+          </div>
+          <span class="step-label">视频下载</span>
+        </div>
+        <div class="pipeline-step" data-step="2">
+          <div class="step-indicator">
+            <div class="step-circle">2</div>
+            <div class="step-line"></div>
+          </div>
+          <span class="step-label">音频提取</span>
+        </div>
+        <div class="pipeline-step" data-step="3">
+          <div class="step-indicator">
+            <div class="step-circle">3</div>
+            <div class="step-line"></div>
+          </div>
+          <span class="step-label">语音转录</span>
+        </div>
+        <div class="pipeline-step" data-step="4">
+          <div class="step-indicator">
+            <div class="step-circle">4</div>
+            <div class="step-line"></div>
+          </div>
+          <span class="step-label">AI 总结</span>
+        </div>
+        <div class="pipeline-step" data-step="5">
+          <div class="step-indicator">
+            <div class="step-circle">5</div>
+            <div class="step-line"></div>
+          </div>
+          <span class="step-label">关键帧分析</span>
+        </div>
+        <div class="pipeline-step" data-step="6">
+          <div class="step-indicator">
+            <div class="step-circle">6</div>
+          </div>
+          <span class="step-label">截图</span>
+        </div>
+      </div>
+
+      <p class="progress-detail hidden" id="progress-detail"></p>
+
+      <!-- 结果预览 -->
+      <div class="result-panel hidden" id="result-panel">
+        <div class="result-header">
+          <h3>📋 处理结果</h3>
+          <div class="result-actions">
+            <button class="btn btn-sm" id="btn-copy-md" title="复制 Markdown">📋 复制</button>
+            <button class="btn btn-sm" id="btn-open-folder" title="打开文件夹">📂 打开目录</button>
+            <button class="btn btn-sm" id="btn-open-file" title="打开文件">📄 打开文件</button>
+          </div>
+        </div>
+        <div class="result-meta" id="result-meta"></div>
+        <div class="result-content" id="result-content"></div>
+
+        <!-- 关键帧预览 -->
+        <div class="keyframes-grid hidden" id="keyframes-grid"></div>
+      </div>
+    </div>
+
+    <!-- 历史记录视图 -->
+    <div class="view" id="view-history">
+      <div class="view-header">
+        <h2>历史记录</h2>
+        <p class="view-subtitle">已处理过的视频列表</p>
+      </div>
+      <div class="history-list" id="history-list">
+        <p class="empty-state">暂无历史记录</p>
+      </div>
+    </div>
+
+    <!-- 设置视图 -->
+    <div class="view" id="view-settings">
+      <div class="view-header">
+        <h2>设置</h2>
+        <p class="view-subtitle">配置 API 密钥和工具路径</p>
+      </div>
+
+      <div class="settings-form">
+        <div class="setting-group">
+          <h3>🔑 API 配置</h3>
+          <div class="setting-item">
+            <label for="setting-api-key">硅基流动 API Key</label>
+            <div class="input-with-toggle">
+              <input type="password" id="setting-api-key" placeholder="sk-xxxxxxxxxxxx">
+              <button class="btn-toggle-pw" id="btn-toggle-pw">👁</button>
+            </div>
+            <p class="setting-hint">从 <a href="#" id="link-siliconflow">siliconflow.cn</a> 获取</p>
+          </div>
+          <div class="setting-item">
+            <label for="setting-model">AI 模型</label>
+            <input type="text" id="setting-model" placeholder="deepseek-ai/DeepSeek-V3.2">
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>🛠️ 工具路径</h3>
+          <div class="setting-item">
+            <label for="setting-ffmpeg">FFmpeg 路径</label>
+            <input type="text" id="setting-ffmpeg" placeholder="ffmpeg">
+          </div>
+          <div class="setting-item">
+            <label for="setting-whisper">Whisper CLI 路径</label>
+            <input type="text" id="setting-whisper" placeholder="">
+          </div>
+          <div class="setting-item">
+            <label for="setting-whisper-model">Whisper 模型文件</label>
+            <input type="text" id="setting-whisper-model" placeholder="">
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>📂 输出设置</h3>
+          <div class="setting-item">
+            <label for="setting-output-dir">输出目录</label>
+            <input type="text" id="setting-output-dir" placeholder="./output">
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button class="btn btn-accent" id="btn-save-settings">💾 保存设置</button>
+          <button class="btn" id="btn-check-deps">🔍 检查依赖</button>
+        </div>
+
+        <div class="deps-result hidden" id="deps-result"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast 通知 -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="renderer.js"></script>
+</body>
+
+</html>

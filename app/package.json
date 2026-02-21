@@ -1,0 +1,90 @@
+{
+    "name": "video-knowledge-extractor",
+    "version": "1.0.0",
+    "description": "短视频 AI 知识萃取工具",
+    "main": "main.js",
+    "scripts": {
+        "start": "npx electron .",
+        "dev": "npx electron . --dev",
+        "build": "electron-builder",
+        "build:mac": "electron-builder --mac",
+        "build:win": "electron-builder --win",
+        "build:linux": "electron-builder --linux"
+    },
+    "build": {
+        "appId": "com.asragent.videoknowledgeextractor",
+        "productName": "视频知识萃取器",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "**/*",
+            "!resources/**"
+        ],
+        "extraResources": [
+            {
+                "from": "resources",
+                "to": "bin",
+                "filter": [
+                    "**/*"
+                ]
+            }
+        ],
+        "mac": {
+            "target": [
+                {
+                    "target": "dmg",
+                    "arch": [
+                        "arm64"
+                    ]
+                },
+                {
+                    "target": "zip",
+                    "arch": [
+                        "arm64"
+                    ]
+                }
+            ],
+            "icon": "assets/icon.icns",
+            "category": "public.app-category.productivity"
+        },
+        "dmg": {
+            "title": "视频知识萃取器",
+            "artifactName": "${productName}-${version}-mac-arm64.${ext}"
+        },
+        "win": {
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "icon": "assets/icon.ico",
+            "artifactName": "${productName}-${version}-win-x64.${ext}"
+        },
+        "nsis": {
+            "oneClick": false,
+            "perMachine": false,
+            "allowToChangeInstallationDirectory": true,
+            "installerIcon": "assets/icon.ico",
+            "uninstallerIcon": "assets/icon.ico"
+        },
+        "linux": {
+            "target": [
+                "AppImage",
+                "deb"
+            ],
+            "icon": "assets/icon.png",
+            "category": "Utility"
+        }
+    },
+    "devDependencies": {
+        "electron": "^33.0.0",
+        "electron-builder": "^25.0.0"
+    },
+    "dependencies": {
+        "marked": "^15.0.0"
+    }
+}

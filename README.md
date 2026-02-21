@@ -9,10 +9,11 @@
 ## ✨ 功能特性
 
 - 🎙️ **本地语音转录** — 基于 whisper.cpp，Metal GPU 加速，隐私安全
-- 🤖 **AI 知识萃取** — 调用硅基流动 DeepSeek-V3.2，自动提炼核心要点
-- 📝 **Markdown 输出** — 结构化总结 + 原始转录文本，方便归档
-- 👀 **监听模式** — 监控文件夹，新增视频自动处理
-- 🎯 **开箱即用** — CLI 命令行操作，简单易用
+- 🤖 **AI 知识萃取** — 调用硅基流动 DeepSeek，自动提炼核心要点，提取视频关键帧
+- ⬇️ **全网视频下载** — 内置 yt-dlp，支持小红书、B站、抖音、YouTube 等 1000+ 平台一键下载解析
+- 🖥️ **可视化桌面端** — 现代化高颜值 Electron 桌面应用，支持拖拽、流式进度与历史记录
+- 📝 **Markdown 输出** — 结构化图文总结 + 原始转录文本，方便 Obsidian 等笔记软件归档
+- 👀 **监听模式** — 支持命令行监控文件夹，新增视频自动处理
 
 ---
 
@@ -156,7 +157,19 @@ python main.py --check
 
 ## 📖 使用方法
 
-### 基础用法
+### 🖥️ 启动桌面应用 (推荐)
+
+项目自带高颜值 Electron 桌面端，支持拖拽和粘贴链接处理：
+```bash
+cd app
+npm install
+npm start
+```
+*所有设置均可在 GUI 界面中保存，无需手动修改 `.env`。*
+
+---
+
+### 💻 命令行基础用法
 
 ```bash
 # 处理单个视频
@@ -224,6 +237,36 @@ WHISPER_MODEL_PATH=./models/ggml-base.bin
 SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3.2
 OUTPUT_DIR=./output
 ```
+
+---
+
+## 📦 桌面端打包发布
+
+你可以将自带的 Electron 界面打包成各个平台的独立可执行文件（App）。项目使用了 `electron-builder` 进行打包：
+
+1. **进入应用目录** 并安装依赖（如果还没装）：
+   ```bash
+   cd app
+   npm install
+   ```
+2. **构建对应平台的应用程序**：
+   
+   - 🍏 **构建 macOS 版 (.dmg/.app)** (需要在一台 Mac 上运行)：
+     ```bash
+     npm run build:mac
+     ```
+   - 🪟 **构建 Windows 版 (.exe)**：
+     ```bash
+     npm run build:win
+     ```
+   - 🐧 **构建 Linux 版 (.AppImage/.deb)**：
+     ```bash
+     npm run build:linux
+     ```
+   
+   > 💡 **提示**：打包生成的文件会输出在 `app/dist/` 目录下。
+
+打包后的独立应用程序**仍然依赖你电脑本地或目标系统里的 Python 环境 (`/opt/miniconda3` 或系统里的 `python3` 等)**，它会自动在电脑里寻找 Python 和你的项目的 `api.py` 作为其后端服务。
 
 ---
 

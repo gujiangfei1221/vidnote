@@ -1,0 +1,211 @@
+# ═══════════════════════════════════════════════════
+# 自动构建 & 发布 — macOS + Windows 全量打包
+# 触发条件：推送 v* 标签 或 手动触发
+# ═══════════════════════════════════════════════════
+
+name: Build Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:   # 支持手动触发
+
+permissions:
+  contents: write      # 允许上传 Release
+
+jobs:
+  # ──────────────────────────────────────────────────
+  # macOS 构建 (Apple Silicon / ARM64)
+  # ──────────────────────────────────────────────────
+  build-mac:
+    runs-on: macos-14   # Apple Silicon M1 runner
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🐍 安装 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 安装 Python 依赖
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: 🔨 PyInstaller 打包 Python 后端
+        run: |
+          pyinstaller --name api_backend --onefile \
+            --add-data "processor:processor" \
+            --add-data "config.py:." \
+            --add-data ".env.example:." \
+            --hidden-import opencc \
+            --hidden-import yt_dlp \
+            --hidden-import requests \
+            --hidden-import dotenv \
+            --hidden-import watchdog \
+            --collect-data opencc \
+            api.py
+
+      - name: 📥 下载静态 FFmpeg (macOS ARM64)
+        run: |
+          curl -L -o ffmpeg.tar.xz \
+            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-macosarm64-gpl.tar.xz"
+          tar xf ffmpeg.tar.xz
+          # 从解压目录中提取 ffmpeg 二进制
+          find . -name "ffmpeg" -type f -path "*/bin/ffmpeg" | head -1 | xargs -I{} cp {} ffmpeg_bin
+          chmod +x ffmpeg_bin
+
+      - name: 🔨 编译 whisper.cpp (Metal GPU 加速)
+        run: |
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git /tmp/whisper.cpp
+          cd /tmp/whisper.cpp
+          cmake -B build -DWHISPER_METAL=ON
+          cmake --build build --config Release -j$(sysctl -n hw.physicalcpu)
+
+      - name: 📥 下载 Whisper 模型 (base, 141MB)
+        run: |
+          curl -L -o ggml-base.bin \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+
+      - name: 📁 组装 resources 目录
+        run: |
+          mkdir -p app/resources
+          cp dist/api_backend           app/resources/
+          cp ffmpeg_bin                  app/resources/ffmpeg
+          cp /tmp/whisper.cpp/build/bin/whisper-cli  app/resources/
+          cp ggml-base.bin              app/resources/
+          # 拷贝 Metal shader (如果存在)
+          find /tmp/whisper.cpp/build -name "*.metallib" -exec cp {} app/resources/ \; 2>/dev/null || true
+          # 确保所有二进制可执行
+          chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli
+
+      - name: 📦 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🏗️ 构建 Electron 应用 (macOS)
+        run: |
+          cd app
+          npm install
+          npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📤 上传 macOS 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mac
+          path: |
+            app/dist/*.dmg
+            app/dist/*.zip
+
+      # 如果是 tag 推送，自动创建 Release
+      - name: 🚀 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/dist/*.dmg
+            app/dist/*.zip
+          draft: true
+          generate_release_notes: true
+
+  # ──────────────────────────────────────────────────
+  # Windows 构建 (x64)
+  # ──────────────────────────────────────────────────
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🐍 安装 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 安装 Python 依赖
+        shell: bash
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: 🔨 PyInstaller 打包 Python 后端
+        shell: bash
+        run: |
+          pyinstaller --name api_backend --onefile \
+            --add-data "processor;processor" \
+            --add-data "config.py;." \
+            --add-data ".env.example;." \
+            --hidden-import opencc \
+            --hidden-import yt_dlp \
+            --hidden-import requests \
+            --hidden-import dotenv \
+            --hidden-import watchdog \
+            --collect-data opencc \
+            api.py
+
+      - name: 📥 下载静态 FFmpeg (Windows x64)
+        shell: bash
+        run: |
+          curl -L -o ffmpeg.zip \
+            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          unzip -q ffmpeg.zip
+          find . -name "ffmpeg.exe" -type f -path "*/bin/ffmpeg.exe" | head -1 | xargs -I{} cp {} ffmpeg_win.exe
+
+      - name: 🔨 编译 whisper.cpp (CPU)
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git /tmp/whisper_cpp
+          cd /tmp/whisper_cpp
+          cmake -B build
+          cmake --build build --config Release
+
+      - name: 📥 下载 Whisper 模型 (base, 141MB)
+        shell: bash
+        run: |
+          curl -L -o ggml-base.bin \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+
+      - name: 📁 组装 resources 目录
+        shell: bash
+        run: |
+          mkdir -p app/resources
+          cp dist/api_backend.exe       app/resources/
+          cp ffmpeg_win.exe             app/resources/ffmpeg.exe
+          # whisper.cpp MSVC 输出路径
+          find /tmp/whisper_cpp/build -name "whisper-cli.exe" | head -1 | xargs -I{} cp {} app/resources/whisper-cli.exe
+          cp ggml-base.bin              app/resources/
+
+      - name: 📦 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🏗️ 构建 Electron 应用 (Windows)
+        shell: bash
+        run: |
+          cd app
+          npm install
+          npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📤 上传 Windows 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-win
+          path: |
+            app/dist/*.exe
+
+      - name: 🚀 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/dist/*.exe
+          draft: true
+          generate_release_notes: true
