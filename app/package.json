@@ -55,7 +55,7 @@
         },
         "dmg": {
             "title": "视频知识萃取器",
-            "artifactName": "${productName}-${version}-mac-arm64.${ext}"
+            "artifactName": "vidnote-${version}-mac-arm64.${ext}"
         },
         "win": {
             "target": [
@@ -67,7 +67,7 @@
                 }
             ],
             "icon": "assets/icon.ico",
-            "artifactName": "${productName}-${version}-win-x64.${ext}"
+            "artifactName": "vidnote-${version}-win-x64.${ext}"
         },
         "nsis": {
             "oneClick": false,
@@ -82,8 +82,10 @@
                 "deb"
             ],
             "icon": "assets/icon.png",
-            "category": "Utility"
-        }
+            "category": "Utility",
+            "artifactName": "vidnote-${version}-${arch}.${ext}"
+        },
+        "artifactName": "vidnote-${version}-${arch}.${ext}"
     },
     "devDependencies": {
         "electron": "^33.0.0",
