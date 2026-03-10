@@ -55,12 +55,6 @@ jobs:
           cp "$(which ffmpeg)" ffmpeg_bin
           chmod +x ffmpeg_bin
 
-      - name: 📥 安装 yt-dlp (macOS ARM64)
-        run: |
-          brew install yt-dlp
-          cp "$(which yt-dlp)" yt-dlp_bin
-          chmod +x yt-dlp_bin
-
       - name: 🔨 编译 whisper.cpp (Metal GPU 加速)
         run: |
           git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git /tmp/whisper.cpp
@@ -78,13 +72,12 @@ jobs:
           mkdir -p app/resources
           cp dist/api_backend           app/resources/
           cp ffmpeg_bin                  app/resources/ffmpeg
-          cp yt-dlp_bin                  app/resources/yt-dlp
           cp /tmp/whisper.cpp/build/bin/whisper-cli  app/resources/
           cp ggml-base.bin              app/resources/
           # 拷贝 Metal shader (如果存在)
           find /tmp/whisper.cpp/build -name "*.metallib" -exec cp {} app/resources/ \; 2>/dev/null || true
           # 确保所有二进制可执行
-          chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/yt-dlp app/resources/whisper-cli
+          chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli
 
       - name: 📦 安装 Node.js
         uses: actions/setup-node@v4
@@ -159,12 +152,6 @@ jobs:
           unzip -q ffmpeg.zip
           find . -name "ffmpeg.exe" -type f -path "*/bin/ffmpeg.exe" | head -1 | xargs -I{} cp {} ffmpeg_win.exe
 
-      - name: 📥 下载 yt-dlp (Windows x64)
-        shell: bash
-        run: |
-          curl -L -o yt-dlp.exe \
-            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-
       - name: 🔨 编译 whisper.cpp (CPU)
         shell: bash
         run: |
@@ -185,7 +172,6 @@ jobs:
           mkdir -p app/resources
           cp dist/api_backend.exe       app/resources/
           cp ffmpeg_win.exe             app/resources/ffmpeg.exe
-          cp yt-dlp.exe                 app/resources/yt-dlp.exe
           # whisper.cpp MSVC 输出路径
           find /tmp/whisper_cpp/build -name "whisper-cli.exe" | head -1 | xargs -I{} cp {} app/resources/whisper-cli.exe
           cp ggml-base.bin              app/resources/

@@ -1,14 +1,11 @@
 """
 视频下载模块
-使用 yt-dlp 从小红书、B站、抖音、YouTube 等平台下载视频。
+使用 yt-dlp Python API 从小红书、B站、抖音、YouTube 等平台下载视频。
 """
 
-import subprocess
-import re
-import sys
 from pathlib import Path
 
-from config import YTDLP_PATH
+from config import FFMPEG_PATH
 
 
 # 支持的平台示例（yt-dlp 实际支持超过 1000 个平台）
@@ -21,27 +18,79 @@ SUPPORTED_PLATFORMS = {
 }
 
 
-def _get_ytdlp_path() -> str:
-    """获取 yt-dlp 可执行文件路径。"""
-    configured_path = Path(YTDLP_PATH)
-    if configured_path.is_file():
-        return str(configured_path)
+def _load_ytdlp():
+    """懒加载 yt-dlp，避免未使用下载功能时提前失败。"""
+    try:
+        from yt_dlp import YoutubeDL
+        from yt_dlp.utils import DownloadError
+        return YoutubeDL, DownloadError
+    except Exception as exc:
+        raise RuntimeError(
+            "未安装 yt-dlp Python 模块\n"
+            "请运行: pip install yt-dlp"
+        ) from exc
 
-    # 优先使用当前 Python 环境中的 yt-dlp
-    python_dir = Path(sys.executable).parent
-    candidates = [
-        YTDLP_PATH,
-        str(python_dir / "yt-dlp"),
-        str(python_dir / "yt-dlp.exe"),
-        "/opt/miniconda3/envs/vidnote/bin/yt-dlp",
-        "/opt/miniforge3/envs/vidnote/bin/yt-dlp",
-        "/opt/homebrew/bin/yt-dlp",
-        "yt-dlp",
-    ]
-    for p in candidates:
-        if Path(p).is_file():
-            return p
-    return "yt-dlp"
+
+def _build_progress_hook(progress_callback):
+    if not progress_callback:
+        return None
+
+    def hook(status):
+        if status.get("status") == "downloading":
+            total = status.get("total_bytes") or status.get("total_bytes_estimate") or 0
+            downloaded = status.get("downloaded_bytes") or 0
+            percent = (downloaded / total * 100.0) if total else 0.0
+            speed = status.get("_speed_str") or "未知速度"
+            eta = status.get("_eta_str") or "--:--"
+            progress_callback(percent, speed, eta)
+        elif status.get("status") == "finished":
+            progress_callback(100.0, "", "00:00")
+
+    return hook
+
+
+def _common_opts() -> dict:
+    return {
+        "noplaylist": True,
+        "no_warnings": True,
+        "quiet": True,
+        "ffmpeg_location": FFMPEG_PATH,
+    }
+
+
+def _resolve_downloaded_file(info: dict, output_dir: Path, ydl) -> str | None:
+    candidates = []
+
+    for item in info.get("requested_downloads", []):
+        filepath = item.get("filepath")
+        if filepath:
+            candidates.append(Path(filepath))
+
+    for key in ("filepath", "_filename"):
+        value = info.get(key)
+        if value:
+            candidates.append(Path(value))
+
+    try:
+        prepared = Path(ydl.prepare_filename(info))
+        candidates.append(prepared)
+        candidates.append(prepared.with_suffix(".mp4"))
+    except Exception:
+        pass
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    mp4_files = sorted(output_dir.glob("*.mp4"), key=lambda f: f.stat().st_mtime)
+    if mp4_files:
+        return str(mp4_files[-1])
+
+    all_files = sorted((f for f in output_dir.iterdir() if f.is_file()), key=lambda f: f.stat().st_mtime)
+    if all_files:
+        return str(all_files[-1])
+
+    return None
 
 
 def get_video_info(url: str) -> dict:
@@ -54,22 +103,18 @@ def get_video_info(url: str) -> dict:
     Returns:
         {"title": str, "duration": int, "thumbnail": str, "uploader": str}
     """
-    ytdlp = _get_ytdlp_path()
-    cmd = [
-        ytdlp,
-        "--dump-json",
-        "--no-playlist",
-        "--no-warnings",
-        url,
-    ]
+    YoutubeDL, DownloadError = _load_ytdlp()
+    opts = {
+        **_common_opts(),
+        "skip_download": True,
+    }
 
-    result = subprocess.run(cmd, capture_output=True, timeout=30)
-    if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", errors="replace")
-        raise RuntimeError(f"获取视频信息失败: {stderr[:300]}")
+    try:
+        with YoutubeDL(opts) as ydl:
+            data = ydl.extract_info(url, download=False)
+    except DownloadError as exc:
+        raise RuntimeError(f"获取视频信息失败: {exc}") from exc
 
-    import json
-    data = json.loads(result.stdout.decode("utf-8", errors="ignore"))
     return {
         "title": data.get("title", "未知标题"),
         "duration": data.get("duration", 0),
@@ -98,91 +143,29 @@ def download_video(
     Raises:
         RuntimeError: 下载失败
     """
-    ytdlp = _get_ytdlp_path()
+    YoutubeDL, DownloadError = _load_ytdlp()
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 输出文件模板：标题.扩展名
-    output_template = str(out_dir / "%(title)s.%(ext)s")
+    opts = {
+        **_common_opts(),
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "merge_output_format": "mp4",
+        "outtmpl": str(out_dir / "%(title)s.%(ext)s"),
+    }
 
-    cmd = [
-        ytdlp,
-        "--no-playlist",          # 不下载播放列表
-        "--no-warnings",
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",  # 优先 mp4
-        "--merge-output-format", "mp4",
-        "--output", output_template,
-        "--newline",              # 每行输出进度（便于解析）
-        url,
-    ]
-
-    print(f"[downloader] cmd: {' '.join(cmd)}")
+    hook = _build_progress_hook(progress_callback)
+    if hook:
+        opts["progress_hooks"] = [hook]
 
     try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            errors="replace",
-        )
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            downloaded_file = _resolve_downloaded_file(info, out_dir, ydl)
+    except DownloadError as exc:
+        raise RuntimeError(f"yt-dlp 下载失败: {exc}") from exc
 
-        downloaded_file = None
+    if not downloaded_file:
+        raise RuntimeError("下载完成但找不到视频文件，请检查输出目录")
 
-        for line in process.stdout:
-            line = line.strip()
-            if not line:
-                continue
-
-            print(f"[yt-dlp] {line}")
-
-            # 解析下载进度: [download]  45.2% of   50.00MiB at   1.23MiB/s ETA 00:27
-            progress_match = re.match(
-                r"\[download\]\s+([\d.]+)%\s+of\s+[\d.]+\S+\s+at\s+([\d.]+\S+)\s+ETA\s+(\S+)",
-                line
-            )
-            if progress_match and progress_callback:
-                percent = float(progress_match.group(1))
-                speed = progress_match.group(2)
-                eta = progress_match.group(3)
-                progress_callback(percent, speed, eta)
-
-            # 解析最终文件路径
-            # [Merger] Merging formats into "path/to/file.mp4"
-            merge_match = re.search(r'Merging formats into "(.+?)"', line)
-            if merge_match:
-                downloaded_file = merge_match.group(1)
-
-            # [download] Destination: path/to/file.mp4
-            dest_match = re.search(r'\[download\] Destination: (.+)', line)
-            if dest_match:
-                downloaded_file = dest_match.group(1).strip()
-
-            # Already downloaded
-            already_match = re.search(r'\[download\] (.+) has already been downloaded', line)
-            if already_match:
-                downloaded_file = already_match.group(1).strip()
-
-        process.wait()
-
-        if process.returncode != 0:
-            raise RuntimeError(f"yt-dlp 下载失败（退出码 {process.returncode}）")
-
-        # 如果没有从输出中捕获到路径，扫描目录找最新文件
-        if not downloaded_file or not Path(downloaded_file).is_file():
-            mp4_files = sorted(out_dir.glob("*.mp4"), key=lambda f: f.stat().st_mtime)
-            if mp4_files:
-                downloaded_file = str(mp4_files[-1])
-
-        if not downloaded_file or not Path(downloaded_file).is_file():
-            raise RuntimeError("下载完成但找不到视频文件，请检查输出目录")
-
-        return downloaded_file
-
-    except FileNotFoundError:
-        raise RuntimeError(
-            "未找到 yt-dlp 命令\n"
-            "请运行: conda activate vidnote && pip install yt-dlp"
-        )
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("下载超时")
+    return downloaded_file
