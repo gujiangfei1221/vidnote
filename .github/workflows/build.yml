@@ -91,8 +91,6 @@ jobs:
           cd app
           npm install
           npm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 📤 上传 macOS 产物
         uses: actions/upload-artifact@v4
@@ -191,8 +189,6 @@ jobs:
           cd app
           npm install
           npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 📤 上传 Windows 产物
         uses: actions/upload-artifact@v4
