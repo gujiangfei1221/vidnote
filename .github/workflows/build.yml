@@ -50,13 +50,11 @@ jobs:
             --collect-data opencc \
             api.py
 
-      - name: 📥 下载静态 FFmpeg (macOS ARM64)
+      - name: 📥 安装 FFmpeg (macOS ARM64)
         run: |
-          curl -L -o ffmpeg.tar.xz \
-            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-macosarm64-gpl.tar.xz"
-          tar xf ffmpeg.tar.xz
-          # 从解压目录中提取 ffmpeg 二进制
-          find . -name "ffmpeg" -type f -path "*/bin/ffmpeg" | head -1 | xargs -I{} cp {} ffmpeg_bin
+          brew update
+          brew install ffmpeg
+          cp "$(which ffmpeg)" ffmpeg_bin
           chmod +x ffmpeg_bin
 
       - name: 🔨 编译 whisper.cpp (Metal GPU 加速)
