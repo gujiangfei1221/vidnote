@@ -9,15 +9,20 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# 加载 .env 文件（开发模式从项目目录加载；打包模式可能不存在，静默跳过）
+# 开发模式默认使用源码目录；打包模式会由 Electron 注入 PROJECT_ROOT
 _default_root = Path(__file__).parent.resolve()
-_env_file = _default_root / ".env"
-if _env_file.is_file():
-    load_dotenv(_env_file)
+_default_env_file = _default_root / ".env"
+if _default_env_file.is_file():
+    load_dotenv(_default_env_file)
 
 # ─── 项目根目录 ───
 # 打包模式下由 Electron 主进程通过环境变量传入用户数据目录
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", str(_default_root)))
+
+# 打包模式优先加载用户目录中的 .env，覆盖默认值
+_project_env_file = PROJECT_ROOT / ".env"
+if _project_env_file.is_file() and _project_env_file != _default_env_file:
+    load_dotenv(_project_env_file, override=True)
 
 # ─── FFmpeg ───
 FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")

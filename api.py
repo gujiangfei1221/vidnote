@@ -12,6 +12,7 @@ import json
 import sys
 import time
 import os
+import importlib
 from pathlib import Path
 
 # 确保项目根目录在 Python 路径中
@@ -24,8 +25,15 @@ def emit(event_type: str, **data):
     print(json.dumps(msg, ensure_ascii=False), flush=True)
 
 
+def reload_config():
+    """重新加载配置模块，让当前后端进程立即读取最新 .env。"""
+    import config as config_module
+    return importlib.reload(config_module)
+
+
 def handle_check_deps(params: dict):
     """检查依赖状态。"""
+    reload_config()
     from config import check_dependencies, WHISPER_MODEL_PATH, WHISPER_CPP_PATH, FFMPEG_PATH
     errors = check_dependencies()
     emit("deps_result",
@@ -240,8 +248,10 @@ def handle_process_video(params: dict):
 
 def handle_save_config(params: dict):
     """保存用户配置到 .env 文件。"""
+    reload_config()
     from config import PROJECT_ROOT
     env_path = PROJECT_ROOT / ".env"
+    env_path.parent.mkdir(parents=True, exist_ok=True)
 
     lines = []
     for key, value in params.items():
@@ -250,11 +260,13 @@ def handle_save_config(params: dict):
         lines.append(f"{key}={value}")
 
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    reload_config()
     emit("config_saved", ok=True)
 
 
 def handle_load_config(params: dict):
     """读取当前配置。"""
+    reload_config()
     from config import (
         SILICONFLOW_API_KEY, SILICONFLOW_MODEL,
         WHISPER_MODEL_PATH, WHISPER_CPP_PATH,
