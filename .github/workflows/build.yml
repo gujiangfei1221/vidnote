@@ -74,10 +74,19 @@ jobs:
           cp ffmpeg_bin                  app/resources/ffmpeg
           cp /tmp/whisper.cpp/build/bin/whisper-cli  app/resources/
           cp ggml-base.bin              app/resources/
+          # 拷贝 whisper.cpp 运行时依赖的动态库
+          find /tmp/whisper.cpp/build -name "*.dylib" -exec cp {} app/resources/ \;
           # 拷贝 Metal shader (如果存在)
           find /tmp/whisper.cpp/build -name "*.metallib" -exec cp {} app/resources/ \; 2>/dev/null || true
+          # 修正 whisper-cli 和 dylib 的运行时搜索路径，避免引用构建机 /tmp 下的绝对路径
+          install_name_tool -add_rpath "@executable_path" app/resources/whisper-cli || true
+          for lib in app/resources/*.dylib; do
+            [ -f "$lib" ] || continue
+            install_name_tool -id "@rpath/$(basename "$lib")" "$lib" || true
+            install_name_tool -add_rpath "@loader_path" "$lib" || true
+          done
           # 确保所有二进制可执行
-          chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli
+          chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli app/resources/*.dylib
 
       - name: 📦 安装 Node.js
         uses: actions/setup-node@v4
