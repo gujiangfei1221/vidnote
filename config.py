@@ -22,6 +22,9 @@ PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", str(_default_root)))
 # ─── FFmpeg ───
 FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
+# ─── yt-dlp ───
+YTDLP_PATH = os.getenv("YTDLP_PATH", "yt-dlp")
+
 # ─── whisper.cpp ───
 WHISPER_CPP_PATH = os.getenv(
     "WHISPER_CPP_PATH",
@@ -95,6 +98,13 @@ def check_dependencies() -> list[str]:
         errors.append(
             f"❌ 未找到 ffmpeg，请运行: brew install ffmpeg\n"
             f"   或设置 FFMPEG_PATH 环境变量指向 ffmpeg 可执行文件"
+        )
+
+    # 检查 yt-dlp
+    if os.system(f"which {YTDLP_PATH} > /dev/null 2>&1") != 0:
+        errors.append(
+            f"❌ 未找到 yt-dlp: {YTDLP_PATH}\n"
+            f"   请安装 yt-dlp 或设置 YTDLP_PATH 环境变量"
         )
 
     # 检查 whisper.cpp

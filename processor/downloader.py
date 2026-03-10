@@ -8,6 +8,8 @@ import re
 import sys
 from pathlib import Path
 
+from config import YTDLP_PATH
+
 
 # 支持的平台示例（yt-dlp 实际支持超过 1000 个平台）
 SUPPORTED_PLATFORMS = {
@@ -21,12 +23,19 @@ SUPPORTED_PLATFORMS = {
 
 def _get_ytdlp_path() -> str:
     """获取 yt-dlp 可执行文件路径。"""
+    configured_path = Path(YTDLP_PATH)
+    if configured_path.is_file():
+        return str(configured_path)
+
     # 优先使用当前 Python 环境中的 yt-dlp
     python_dir = Path(sys.executable).parent
     candidates = [
+        YTDLP_PATH,
         str(python_dir / "yt-dlp"),
+        str(python_dir / "yt-dlp.exe"),
         "/opt/miniconda3/envs/vidnote/bin/yt-dlp",
         "/opt/miniforge3/envs/vidnote/bin/yt-dlp",
+        "/opt/homebrew/bin/yt-dlp",
         "yt-dlp",
     ]
     for p in candidates:

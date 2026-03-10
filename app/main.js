@@ -62,6 +62,7 @@ function startPython() {
         const isWin = process.platform === 'win32';
         const backendPath = path.join(binPath, isWin ? 'api_backend.exe' : 'api_backend');
         const ffmpegPath = path.join(binPath, isWin ? 'ffmpeg.exe' : 'ffmpeg');
+        const ytdlpPath = path.join(binPath, isWin ? 'yt-dlp.exe' : 'yt-dlp');
         const whisperPath = path.join(binPath, isWin ? 'whisper-cli.exe' : 'whisper-cli');
         const modelPath = path.join(binPath, 'ggml-base.bin');
 
@@ -84,6 +85,7 @@ function startPython() {
                 // 通过环境变量传入所有工具路径
                 PROJECT_ROOT: projectRoot,
                 FFMPEG_PATH: ffmpegPath,
+                YTDLP_PATH: ytdlpPath,
                 WHISPER_CPP_PATH: whisperPath,
                 WHISPER_MODEL_PATH: modelPath,
                 OUTPUT_DIR: outputDir,
