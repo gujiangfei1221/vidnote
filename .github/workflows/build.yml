@@ -106,18 +106,14 @@ jobs:
           # 拷贝 .env 模板
           cp .env.example                 cli-release/vidnote-cli/.env.example
           # 创建启动说明
-          cat > cli-release/vidnote-cli/README.txt << 'EOF'
-          VidNote CLI - 视频知识萃取工具
-
-          使用前：
-            1. 复制 .env.example 为 .env
-            2. 编辑 .env，填入你的硅基流动 API Key
-
-          使用方法：
-            ./api_backend info <视频链接>
-            ./api_backend process <视频链接> --json
-            ./api_backend process <视频链接> -o ./output
-          EOF
+          printf 'VidNote CLI - 视频知识萃取工具\n\n' > cli-release/vidnote-cli/README.txt
+          printf '使用前：\n' >> cli-release/vidnote-cli/README.txt
+          printf '  1. 复制 .env.example 为 .env\n' >> cli-release/vidnote-cli/README.txt
+          printf '  2. 编辑 .env，填入你的硅基流动 API Key\n\n' >> cli-release/vidnote-cli/README.txt
+          printf '使用方法：\n' >> cli-release/vidnote-cli/README.txt
+          printf '  ./api_backend info <视频链接>\n' >> cli-release/vidnote-cli/README.txt
+          printf '  ./api_backend process <视频链接> --json\n' >> cli-release/vidnote-cli/README.txt
+          printf '  ./api_backend process <视频链接> -o ./output\n' >> cli-release/vidnote-cli/README.txt
           cd cli-release
           tar -czf ../vidnote-cli-mac-arm64.tar.gz vidnote-cli/
 
@@ -362,16 +358,14 @@ jobs:
           cp app/resources/*.so           cli-release/vidnote-cli/ 2>/dev/null || true
           cp .env.example                 cli-release/vidnote-cli/.env.example
           # 创建启动脚本（自动设置 LD_LIBRARY_PATH）
-          cat > cli-release/vidnote-cli/vidnote << 'SCRIPT'
-#!/bin/bash
-# VidNote CLI 启动脚本 —— 自动设置库搜索路径
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export LD_LIBRARY_PATH="$SCRIPT_DIR:$LD_LIBRARY_PATH"
-export FFMPEG_PATH="$SCRIPT_DIR/ffmpeg"
-export WHISPER_CPP_PATH="$SCRIPT_DIR/whisper-cli"
-export WHISPER_MODEL_PATH="$SCRIPT_DIR/ggml-base.bin"
-exec "$SCRIPT_DIR/api_backend" "$@"
-SCRIPT
+          printf '#!/bin/bash\n' > cli-release/vidnote-cli/vidnote
+          printf '# VidNote CLI 启动脚本\n' >> cli-release/vidnote-cli/vidnote
+          printf 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'export LD_LIBRARY_PATH="$SCRIPT_DIR:$LD_LIBRARY_PATH"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'export FFMPEG_PATH="$SCRIPT_DIR/ffmpeg"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'export WHISPER_CPP_PATH="$SCRIPT_DIR/whisper-cli"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'export WHISPER_MODEL_PATH="$SCRIPT_DIR/ggml-base.bin"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'exec "$SCRIPT_DIR/api_backend" "$@"\n' >> cli-release/vidnote-cli/vidnote
           chmod +x cli-release/vidnote-cli/vidnote
           cd cli-release
           tar -czf ../vidnote-cli-linux-x64.tar.gz vidnote-cli/
