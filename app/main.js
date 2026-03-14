@@ -132,8 +132,8 @@ function startPython() {
         console.log(`[Main] Python: ${pythonPath}`);
         console.log(`[Main] Working dir: ${projectRoot}`);
 
-        pythonProcess = spawn(pythonPath, [path.join(projectRoot, 'api.py')], {
-            cwd: projectRoot,
+        pythonProcess = spawn(pythonPath, [path.join(projectRoot, 'backend', 'api.py')], {
+            cwd: path.join(projectRoot, 'backend'),
             stdio: ['pipe', 'pipe', 'pipe'],
             env: { ...process.env, PYTHONUNBUFFERED: '1' },
         });

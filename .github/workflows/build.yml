@@ -31,15 +31,16 @@ jobs:
 
       - name: 📦 安装 Python 依赖
         run: |
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           pip install pyinstaller
 
       - name: 🔨 PyInstaller 打包 Python 后端
+        working-directory: backend
         run: |
           pyinstaller --name api_backend --onefile \
             --add-data "processor:processor" \
             --add-data "config.py:." \
-            --add-data ".env.example:." \
+            --add-data "../.env.example:." \
             --hidden-import opencc \
             --hidden-import yt_dlp \
             --hidden-import requests \

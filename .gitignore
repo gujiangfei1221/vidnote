@@ -2,8 +2,6 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-dist/
-build/
 
 # Environment
 .env
@@ -11,7 +9,6 @@ build/
 
 # Whisper models
 models/*.bin
-vendor/
 
 # Output
 output/
@@ -31,9 +28,12 @@ yarn-error.log*
 app/out/
 app/dist/
 app/resources/
-.DS_Store
 
 # PyInstaller
 dist/
 build/
 *.spec
+
+# Build cache
+.build_cache/
+vendor/

@@ -13,8 +13,9 @@ echo  ** VidNote Windows Build Tool **
 echo  -------------------------------------------------------
 echo.
 
-:: Path settings
-set "ROOT_DIR=%~dp0"
+:: Path settings (scripts\ is inside ROOT_DIR)
+for %%A in ("%~dp0..") do set "ROOT_DIR=%%~fA\"
+set "BACKEND_DIR=%ROOT_DIR%backend"
 set "APP_DIR=%ROOT_DIR%app"
 set "RESOURCES_DIR=%APP_DIR%\resources"
 set "DIST_DIR=%APP_DIR%\dist"
@@ -171,7 +172,7 @@ if not exist "%RESOURCES_DIR%" mkdir "%RESOURCES_DIR%"
 :: STEP 2: Install Python dependencies
 :: -------------------------------------------------------
 echo [STEP 2] Installing Python dependencies...
-cd /d "%ROOT_DIR%"
+cd /d "%BACKEND_DIR%"
 pip install -r requirements.txt --quiet
 pip install pyinstaller --quiet
 echo  [OK] Python dependencies installed
@@ -272,8 +273,8 @@ echo.
 :: STEP 6: PyInstaller - package Python backend
 :: -------------------------------------------------------
 echo [STEP 6] PyInstaller packaging backend...
-cd /d "%ROOT_DIR%"
-pyinstaller --name api_backend --onefile --add-data "processor;processor" --add-data "config.py;." --add-data ".env.example;." --hidden-import opencc --hidden-import yt_dlp --hidden-import requests --hidden-import dotenv --hidden-import watchdog --collect-data opencc --distpath "%ROOT_DIR%dist" api.py
+cd /d "%BACKEND_DIR%"
+pyinstaller --name api_backend --onefile --add-data "processor;processor" --add-data "config.py;." --add-data "%ROOT_DIR%.env.example;." --hidden-import opencc --hidden-import yt_dlp --hidden-import requests --hidden-import dotenv --hidden-import watchdog --collect-data opencc --distpath "%ROOT_DIR%dist" api.py
 
 if not exist "%ROOT_DIR%dist\api_backend.exe" (
     echo  [X] PyInstaller FAILED
