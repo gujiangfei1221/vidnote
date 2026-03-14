@@ -321,10 +321,6 @@ jobs:
             --distpath ../dist \
             api.py
 
-      - name: 📥 获取 FFmpeg 路径
-        run: |
-          cp "$(which ffmpeg)" ffmpeg_bin
-          chmod +x ffmpeg_bin
 
       - name: 🔨 编译 whisper.cpp (CPU + OpenBLAS 加速)
         run: |
