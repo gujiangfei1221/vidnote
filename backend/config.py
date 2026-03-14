@@ -9,14 +9,21 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# 开发模式默认使用源码目录；打包模式会由 Electron 注入 PROJECT_ROOT
-_default_root = Path(__file__).parent.resolve()
+# ─── 检测运行模式 ───
+# PyInstaller 打包后 __file__ 指向临时解压目录，需要用 sys.executable 定位真实路径
+if getattr(sys, 'frozen', False):
+    # PyInstaller 打包模式：可执行文件所在目录为默认根目录
+    _default_root = Path(sys.executable).parent.resolve()
+else:
+    # 开发模式：源码目录
+    _default_root = Path(__file__).parent.resolve()
+
 _default_env_file = _default_root / ".env"
 if _default_env_file.is_file():
     load_dotenv(_default_env_file)
 
 # ─── 项目根目录 ───
-# 打包模式下由 Electron 主进程通过环境变量传入用户数据目录
+# 打包模式下可由 Electron 主进程通过环境变量传入用户数据目录
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", str(_default_root)))
 
 # 打包模式优先加载用户目录中的 .env，覆盖默认值
@@ -24,18 +31,28 @@ _project_env_file = PROJECT_ROOT / ".env"
 if _project_env_file.is_file() and _project_env_file != _default_env_file:
     load_dotenv(_project_env_file, override=True)
 
+# ─── 二进制工具目录 ───
+# CLI 打包模式下 ffmpeg / whisper-cli 与可执行文件在同一目录
+BIN_DIR = Path(sys.executable).parent.resolve() if getattr(sys, 'frozen', False) else None
+
 # ─── FFmpeg ───
-FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
+_ffmpeg_default = str(BIN_DIR / "ffmpeg") if BIN_DIR and (BIN_DIR / "ffmpeg").is_file() else "ffmpeg"
+FFMPEG_PATH = os.getenv("FFMPEG_PATH", _ffmpeg_default)
 
 # ─── whisper.cpp ───
-WHISPER_CPP_PATH = os.getenv(
-    "WHISPER_CPP_PATH",
-    str(PROJECT_ROOT / "vendor" / "whisper.cpp" / "build" / "bin" / "whisper-cli"),
+_whisper_cli_default = (
+    str(BIN_DIR / "whisper-cli")
+    if BIN_DIR and (BIN_DIR / "whisper-cli").is_file()
+    else str(PROJECT_ROOT / "vendor" / "whisper.cpp" / "build" / "bin" / "whisper-cli")
 )
-WHISPER_MODEL_PATH = os.getenv(
-    "WHISPER_MODEL_PATH",
-    str(PROJECT_ROOT / "models" / "ggml-base.bin"),
+WHISPER_CPP_PATH = os.getenv("WHISPER_CPP_PATH", _whisper_cli_default)
+
+_model_default = (
+    str(BIN_DIR / "ggml-base.bin")
+    if BIN_DIR and (BIN_DIR / "ggml-base.bin").is_file()
+    else str(PROJECT_ROOT / "models" / "ggml-base.bin")
 )
+WHISPER_MODEL_PATH = os.getenv("WHISPER_MODEL_PATH", _model_default)
 
 # ─── 硅基流动 API ───
 SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")

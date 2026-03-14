@@ -3,12 +3,37 @@
 调用本地编译的 whisper.cpp 进行语音识别。
 """
 
+import os
 import re
 import subprocess
 import shlex
 from pathlib import Path
 
-from config import WHISPER_CPP_PATH, WHISPER_MODEL_PATH
+from config import WHISPER_CPP_PATH, WHISPER_MODEL_PATH, BIN_DIR
+
+
+def _build_subprocess_env() -> dict | None:
+    """
+    构建子进程环境变量。
+    PyInstaller 打包模式下，whisper-cli 需要找到同目录的动态库（.so / .dylib）。
+    """
+    if BIN_DIR is None:
+        return None  # 开发模式，继承当前环境即可
+
+    import platform
+    env = dict(os.environ)
+    bin_dir_str = str(BIN_DIR)
+
+    if platform.system() == "Darwin":
+        # macOS: DYLD_LIBRARY_PATH（注意 SIP 可能会清除，但 subprocess 通常不受影响）
+        existing = env.get("DYLD_LIBRARY_PATH", "")
+        env["DYLD_LIBRARY_PATH"] = f"{bin_dir_str}:{existing}" if existing else bin_dir_str
+    else:
+        # Linux: LD_LIBRARY_PATH
+        existing = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = f"{bin_dir_str}:{existing}" if existing else bin_dir_str
+
+    return env
 
 # ANSI 转义序列的字节模式（用于在解码前剥离颜色代码）
 _ANSI_ESCAPE_BYTES = re.compile(rb"\x1b\[[0-9;]*m")
@@ -67,6 +92,7 @@ def transcribe(
             cmd,
             capture_output=True,
             timeout=600,  # 10分钟超时
+            env=_build_subprocess_env(),
         )
 
         # 先剥离 ANSI 转义序列的原始字节，再解码为 UTF-8
@@ -148,6 +174,7 @@ def transcribe_with_timestamps(
             cmd,
             capture_output=True,
             timeout=600,
+            env=_build_subprocess_env(),
         )
 
         stderr_text = result.stderr.decode("utf-8", errors="replace")
