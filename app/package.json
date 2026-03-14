@@ -2,7 +2,10 @@
     "name": "vidnote",
     "version": "1.0.0",
     "description": "短视频 AI 知识萃取工具",
-    "author": "gujiangfei",
+    "author": {
+        "name": "gujiangfei",
+        "email": "gujiangfei@gmail.com"
+    },
     "repository": {
         "type": "git",
         "url": "https://github.com/gujiangfei/vidnote.git"
