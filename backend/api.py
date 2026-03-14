@@ -336,8 +336,8 @@ def handle_list_history(params: dict):
     emit("history", records=records)
 
 
-def main():
-    """主循环：从 stdin 读取 JSON 命令并分发处理。"""
+def api_main():
+    """Electron JSON API 模式：从 stdin 读取 JSON 命令并分发处理。"""
     emit("ready", message="Python 后端已就绪")
 
     handlers = {
@@ -372,5 +372,15 @@ def main():
             emit("error", message=f"处理异常: {e}")
 
 
+def main():
+    """入口分流：有命令行参数 → CLI 模式，无参数 → Electron JSON API 模式。"""
+    if len(sys.argv) > 1:
+        from cli import cli_main
+        cli_main()
+    else:
+        api_main()
+
+
 if __name__ == "__main__":
     main()
+
