@@ -55,6 +55,11 @@ def _common_opts() -> dict:
         "no_warnings": True,
         "quiet": True,
         "ffmpeg_location": FFMPEG_PATH,
+        # SSL/network robustness
+        "nocheckcertificate": True,
+        "retries": 3,
+        "fragment_retries": 3,
+        "socket_timeout": 30,
     }
 
 
