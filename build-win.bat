@@ -295,6 +295,13 @@ copy "%FFMPEG_EXE%"                    "%RESOURCES_DIR%\ffmpeg.exe"      >nul
 copy "%WHISPER_EXE%"                   "%RESOURCES_DIR%\whisper-cli.exe" >nul
 copy "%MODEL_FILE%"                    "%RESOURCES_DIR%\ggml-base.bin"   >nul
 
+:: Copy whisper.cpp runtime DLLs (ggml.dll, ggml-base.dll, ggml-cpu.dll, whisper.dll)
+set "WHISPER_BIN_DIR=%WHISPER_DIR%\build\bin\Release"
+for %%f in ("%WHISPER_BIN_DIR%\*.dll") do (
+    copy "%%f" "%RESOURCES_DIR%\" >nul
+    echo  [OK] Copied DLL: %%~nxf
+)
+
 echo  [OK] Resources assembled
 echo.
 
