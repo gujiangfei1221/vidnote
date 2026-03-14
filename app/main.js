@@ -3,6 +3,20 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// ─── 文件日志（打包后方便排查问题）───
+let logStream = null;
+function initLog() {
+    const logPath = path.join(app.getPath('userData'), 'vidnote.log');
+    logStream = fs.createWriteStream(logPath, { flags: 'w', encoding: 'utf-8' });
+    const origLog = console.log;
+    console.log = (...args) => {
+        const line = `[${new Date().toISOString()}] ${args.join(' ')}`;
+        origLog(line);
+        if (logStream) logStream.write(line + '\n');
+    };
+    console.log(`[Main] Log file: ${logPath}`);
+}
+
 let mainWindow;
 let pythonProcess = null;
 
@@ -241,6 +255,7 @@ ipcMain.on('copy-to-clipboard', (event, text) => {
 
 // ─── 应用生命周期 ───
 app.whenReady().then(() => {
+    initLog();
     createWindow();
     startPython();
 

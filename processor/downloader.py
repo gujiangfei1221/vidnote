@@ -151,7 +151,8 @@ def download_video(
         **_common_opts(),
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "merge_output_format": "mp4",
-        "outtmpl": str(out_dir / "%(title)s.%(ext)s"),
+        # 使用视频 ID 作为文件名（纯 ASCII），避免 Windows 中文路径编码问题
+        "outtmpl": str(out_dir / "%(id)s.%(ext)s"),
     }
 
     hook = _build_progress_hook(progress_callback)

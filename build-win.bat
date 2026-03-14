@@ -31,17 +31,17 @@ set "SET_PROXY=1"
 set "HTTP_PROXY_ADDR=127.0.0.1:10809"
 set "SOCKS_PROXY_ADDR=127.0.0.1:10808"
 
-if "%SET_PROXY%"=="1" (
-    echo  [PROXY] HTTP/HTTPS -^> %HTTP_PROXY_ADDR%  SOCKS5 -^> %SOCKS_PROXY_ADDR%
-    set "HTTP_PROXY=http://%HTTP_PROXY_ADDR%"
-    set "HTTPS_PROXY=http://%HTTP_PROXY_ADDR%"
-    set "ALL_PROXY=socks5://%SOCKS_PROXY_ADDR%"
-    git config --global http.proxy "http://%HTTP_PROXY_ADDR%"
-    git config --global https.proxy "http://%HTTP_PROXY_ADDR%"
-    set "PIP_INDEX_URL=https://pypi.org/simple"
-    echo  [PROXY] Done
-    echo.
-)
+if "%SET_PROXY%"=="0" goto :skip_proxy
+echo  [PROXY] HTTP/HTTPS -^> %HTTP_PROXY_ADDR%  SOCKS5 -^> %SOCKS_PROXY_ADDR%
+set "HTTP_PROXY=http://%HTTP_PROXY_ADDR%"
+set "HTTPS_PROXY=http://%HTTP_PROXY_ADDR%"
+set "ALL_PROXY=socks5://%SOCKS_PROXY_ADDR%"
+git config --global http.proxy "http://%HTTP_PROXY_ADDR%"
+git config --global https.proxy "http://%HTTP_PROXY_ADDR%"
+set "PIP_INDEX_URL=https://pypi.org/simple"
+echo  [PROXY] Done
+echo.
+:skip_proxy
 
 :: -------------------------------------------------------
 :: STEP 0: Check admin privileges
@@ -303,8 +303,13 @@ echo.
 :: -------------------------------------------------------
 echo [STEP 8] Building Electron Windows installer...
 cd /d "%APP_DIR%"
-npm install --silent
-npm run build:win
+:: Re-apply proxy for electron-builder download
+if "%SET_PROXY%"=="1" (
+    set "HTTP_PROXY=http://%HTTP_PROXY_ADDR%"
+    set "HTTPS_PROXY=http://%HTTP_PROXY_ADDR%"
+)
+call npm install --silent
+call npm run build:win
 
 if %errorLevel% neq 0 (
     echo  [X] Electron build FAILED
