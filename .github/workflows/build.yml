@@ -1,9 +1,10 @@
 # ═══════════════════════════════════════════════════
-# 自动构建 & 发布 — macOS + Windows 全量打包
+# 自动构建 & 发布 — macOS + Windows + Linux
+# 产物：6 种（3 平台 × Electron 桌面应用 + CLI 二进制包）
 # 触发条件：推送 v* 标签自动构建并发布；支持手动触发
 # ═══════════════════════════════════════════════════
 
-name: Build Desktop App
+name: Build Desktop App & CLI
 
 on:
   push:
@@ -17,6 +18,7 @@ permissions:
 jobs:
   # ──────────────────────────────────────────────────
   # macOS 构建 (Apple Silicon / ARM64)
+  # 产物：Electron DMG/ZIP + CLI tar.gz
   # ──────────────────────────────────────────────────
   build-mac:
     runs-on: macos-14   # Apple Silicon M1 runner
@@ -90,6 +92,36 @@ jobs:
           # 确保所有二进制可执行
           chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli app/resources/*.dylib
 
+      # ── CLI 产物：打包自包含 tar.gz ──
+      - name: 📦 打包 CLI 二进制 (macOS)
+        run: |
+          mkdir -p cli-release/vidnote-cli
+          cp app/resources/api_backend    cli-release/vidnote-cli/
+          cp app/resources/ffmpeg         cli-release/vidnote-cli/
+          cp app/resources/whisper-cli    cli-release/vidnote-cli/
+          cp app/resources/ggml-base.bin  cli-release/vidnote-cli/
+          # 拷贝动态库
+          cp app/resources/*.dylib        cli-release/vidnote-cli/ 2>/dev/null || true
+          cp app/resources/*.metallib     cli-release/vidnote-cli/ 2>/dev/null || true
+          # 拷贝 .env 模板
+          cp .env.example                 cli-release/vidnote-cli/.env.example
+          # 创建启动说明
+          cat > cli-release/vidnote-cli/README.txt << 'EOF'
+          VidNote CLI - 视频知识萃取工具
+
+          使用前：
+            1. 复制 .env.example 为 .env
+            2. 编辑 .env，填入你的硅基流动 API Key
+
+          使用方法：
+            ./api_backend info <视频链接>
+            ./api_backend process <视频链接> --json
+            ./api_backend process <视频链接> -o ./output
+          EOF
+          cd cli-release
+          tar -czf ../vidnote-cli-mac-arm64.tar.gz vidnote-cli/
+
+      # ── Electron 产物 ──
       - name: 📦 安装 Node.js
         uses: actions/setup-node@v4
         with:
@@ -101,13 +133,19 @@ jobs:
           npm install
           npm run build:mac
 
-      - name: 📤 上传 macOS 产物
+      - name: 📤 上传 macOS Electron 产物
         uses: actions/upload-artifact@v4
         with:
-          name: release-mac
+          name: release-mac-electron
           path: |
             app/dist/*.dmg
             app/dist/*.zip
+
+      - name: 📤 上传 macOS CLI 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mac-cli
+          path: vidnote-cli-mac-arm64.tar.gz
 
       # 如果是 tag 推送，自动创建 Release
       - name: 🚀 发布到 GitHub Release
@@ -117,11 +155,13 @@ jobs:
           files: |
             app/dist/*.dmg
             app/dist/*.zip
+            vidnote-cli-mac-arm64.tar.gz
           draft: true
           generate_release_notes: true
 
   # ──────────────────────────────────────────────────
   # Windows 构建 (x64)
+  # 产物：Electron EXE + CLI zip
   # ──────────────────────────────────────────────────
   build-win:
     runs-on: windows-latest
@@ -189,6 +229,22 @@ jobs:
           find /tmp/whisper_cpp/build -name "whisper-cli.exe" | head -1 | xargs -I{} cp {} app/resources/whisper-cli.exe
           cp ggml-base.bin              app/resources/
 
+      # ── CLI 产物：打包自包含 zip ──
+      - name: 📦 打包 CLI 二进制 (Windows)
+        shell: bash
+        run: |
+          mkdir -p cli-release/vidnote-cli
+          cp app/resources/api_backend.exe   cli-release/vidnote-cli/
+          cp app/resources/ffmpeg.exe        cli-release/vidnote-cli/
+          cp app/resources/whisper-cli.exe   cli-release/vidnote-cli/
+          cp app/resources/ggml-base.bin     cli-release/vidnote-cli/
+          # 拷贝可能的 DLL 依赖
+          find /tmp/whisper_cpp/build -name "*.dll" -exec cp {} cli-release/vidnote-cli/ \; 2>/dev/null || true
+          cp .env.example                    cli-release/vidnote-cli/.env.example
+          cd cli-release
+          7z a -tzip ../vidnote-cli-win-x64.zip vidnote-cli/
+
+      # ── Electron 产物 ──
       - name: 📦 安装 Node.js
         uses: actions/setup-node@v4
         with:
@@ -201,12 +257,18 @@ jobs:
           npm install
           npm run build:win
 
-      - name: 📤 上传 Windows 产物
+      - name: 📤 上传 Windows Electron 产物
         uses: actions/upload-artifact@v4
         with:
-          name: release-win
+          name: release-win-electron
           path: |
             app/dist/*.exe
+
+      - name: 📤 上传 Windows CLI 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-win-cli
+          path: vidnote-cli-win-x64.zip
 
       - name: 🚀 发布到 GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -214,5 +276,139 @@ jobs:
         with:
           files: |
             app/dist/*.exe
+            vidnote-cli-win-x64.zip
+          draft: true
+          generate_release_notes: true
+
+  # ──────────────────────────────────────────────────
+  # Linux 构建 (x64)
+  # 产物：Electron AppImage/deb + CLI tar.gz
+  # ──────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🐍 安装 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg cmake libopenblas-dev
+
+      - name: 📦 安装 Python 依赖
+        run: |
+          pip install -r backend/requirements.txt
+          pip install pyinstaller
+
+      - name: 🔨 PyInstaller 打包 Python 后端
+        working-directory: backend
+        run: |
+          pyinstaller --name api_backend --onefile \
+            --add-data "processor:processor" \
+            --add-data "config.py:." \
+            --add-data "../.env.example:." \
+            --hidden-import opencc \
+            --hidden-import yt_dlp \
+            --hidden-import requests \
+            --hidden-import dotenv \
+            --hidden-import watchdog \
+            --collect-data opencc \
+            --distpath ../dist \
+            api.py
+
+      - name: 📥 获取 FFmpeg 路径
+        run: |
+          cp "$(which ffmpeg)" ffmpeg_bin
+          chmod +x ffmpeg_bin
+
+      - name: 🔨 编译 whisper.cpp (CPU + OpenBLAS 加速)
+        run: |
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git /tmp/whisper.cpp
+          cd /tmp/whisper.cpp
+          cmake -B build -DWHISPER_BLAS=ON -DBLAS_LIB=OpenBLAS
+          cmake --build build --config Release -j$(nproc)
+
+      - name: 📥 下载 Whisper 模型 (base, 141MB)
+        run: |
+          curl -L -o ggml-base.bin \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+
+      - name: 📁 组装 resources 目录
+        run: |
+          mkdir -p app/resources
+          cp dist/api_backend            app/resources/
+          cp ffmpeg_bin                   app/resources/ffmpeg
+          cp /tmp/whisper.cpp/build/bin/whisper-cli  app/resources/
+          cp ggml-base.bin               app/resources/
+          # 拷贝 whisper.cpp 动态库
+          find /tmp/whisper.cpp/build -name "*.so" -exec cp {} app/resources/ \; 2>/dev/null || true
+          # 确保所有二进制可执行
+          chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli
+
+      # ── CLI 产物：打包自包含 tar.gz ──
+      - name: 📦 打包 CLI 二进制 (Linux)
+        run: |
+          mkdir -p cli-release/vidnote-cli
+          cp app/resources/api_backend    cli-release/vidnote-cli/
+          cp app/resources/ffmpeg         cli-release/vidnote-cli/
+          cp app/resources/whisper-cli    cli-release/vidnote-cli/
+          cp app/resources/ggml-base.bin  cli-release/vidnote-cli/
+          # 拷贝 .so 动态库
+          cp app/resources/*.so           cli-release/vidnote-cli/ 2>/dev/null || true
+          cp .env.example                 cli-release/vidnote-cli/.env.example
+          # 创建启动脚本（自动设置 LD_LIBRARY_PATH）
+          cat > cli-release/vidnote-cli/vidnote << 'SCRIPT'
+#!/bin/bash
+# VidNote CLI 启动脚本 —— 自动设置库搜索路径
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export LD_LIBRARY_PATH="$SCRIPT_DIR:$LD_LIBRARY_PATH"
+export FFMPEG_PATH="$SCRIPT_DIR/ffmpeg"
+export WHISPER_CPP_PATH="$SCRIPT_DIR/whisper-cli"
+export WHISPER_MODEL_PATH="$SCRIPT_DIR/ggml-base.bin"
+exec "$SCRIPT_DIR/api_backend" "$@"
+SCRIPT
+          chmod +x cli-release/vidnote-cli/vidnote
+          cd cli-release
+          tar -czf ../vidnote-cli-linux-x64.tar.gz vidnote-cli/
+
+      # ── Electron 产物 ──
+      - name: 📦 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🏗️ 构建 Electron 应用 (Linux)
+        run: |
+          cd app
+          npm install
+          npm run build:linux
+
+      - name: 📤 上传 Linux Electron 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-electron
+          path: |
+            app/dist/*.AppImage
+            app/dist/*.deb
+
+      - name: 📤 上传 Linux CLI 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-cli
+          path: vidnote-cli-linux-x64.tar.gz
+
+      - name: 🚀 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app/dist/*.AppImage
+            app/dist/*.deb
+            vidnote-cli-linux-x64.tar.gz
           draft: true
           generate_release_notes: true
