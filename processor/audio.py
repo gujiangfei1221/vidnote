@@ -49,8 +49,8 @@ def extract_audio(video_path: str, output_wav: str | None = None) -> str:
         str(output_wav),
     ]
 
-    print(f"🎬 正在提取音频: {video.name}")
-    print(f"   命令: {shlex.join(cmd)}")
+    print(f"[audio] Extracting audio: {video.name}")
+    print(f"[audio] Command: {shlex.join(cmd)}")
 
     try:
         result = subprocess.run(
@@ -68,7 +68,7 @@ def extract_audio(video_path: str, output_wav: str | None = None) -> str:
 
         output_file = Path(output_wav)
         size_mb = output_file.stat().st_size / (1024 * 1024)
-        print(f"✅ 音频提取完成: {output_file.name} ({size_mb:.1f} MB)")
+        print(f"[audio] Done: {output_file.name} ({size_mb:.1f} MB)")
 
         return str(output_file)
 

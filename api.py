@@ -13,10 +13,16 @@ import sys
 import time
 import os
 import importlib
+import io
 from pathlib import Path
 
 # 确保项目根目录在 Python 路径中
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
+# Windows 下强制 stdout/stderr 使用 UTF-8，避免 GBK 编码导致 emoji/中文崩溃
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 
 def emit(event_type: str, **data):
