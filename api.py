@@ -22,7 +22,11 @@ sys.path.insert(0, str(Path(__file__).parent.resolve()))
 def emit(event_type: str, **data):
     """向 stdout 输出一条 JSON 事件。"""
     msg = {"type": event_type, **data}
-    print(json.dumps(msg, ensure_ascii=False), flush=True)
+    # ensure_ascii=True：中文转为 \uXXXX 纯 ASCII 序列
+    # 彻底避免 Windows stdout 编码(GBK/cp936)导致乱码
+    line = json.dumps(msg, ensure_ascii=True)
+    sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+    sys.stdout.buffer.flush()
 
 
 def reload_config():
