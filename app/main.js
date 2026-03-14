@@ -79,6 +79,8 @@ function startPython() {
             env: {
                 ...process.env,
                 PYTHONUNBUFFERED: '1',
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUTF8: '1',
                 // 将 bin 目录加入 PATH，让 yt-dlp 也能找到 ffmpeg
                 PATH: binPath + path.delimiter + (process.env.PATH || ''),
                 // 通过环境变量传入所有工具路径
@@ -126,8 +128,9 @@ function startPython() {
     // ─── 共享的 stdout/stderr 处理 ───
     let buffer = '';
 
+    pythonProcess.stdout.setEncoding('utf-8');
     pythonProcess.stdout.on('data', (data) => {
-        buffer += data.toString();
+        buffer += data;
         const lines = buffer.split('\n');
         buffer = lines.pop();
 
@@ -145,8 +148,9 @@ function startPython() {
         }
     });
 
+    pythonProcess.stderr.setEncoding('utf-8');
     pythonProcess.stderr.on('data', (data) => {
-        console.log(`[Python stderr] ${data.toString().trim()}`);
+        console.log(`[Python stderr] ${data.trim()}`);
     });
 
     pythonProcess.on('close', (code) => {
