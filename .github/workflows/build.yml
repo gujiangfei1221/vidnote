@@ -293,8 +293,12 @@ jobs:
 
       - name: 📦 安装系统依赖
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg cmake libopenblas-dev
+          sudo apt-get install -y cmake libopenblas-dev
+          # 下载静态编译的 ffmpeg（避免动态库依赖问题）
+          curl -L -o ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+          tar -xf ffmpeg.tar.xz
+          cp ffmpeg-*-amd64-static/ffmpeg ffmpeg_bin
+          chmod +x ffmpeg_bin
 
       - name: 📦 安装 Python 依赖
         run: |
@@ -341,8 +345,8 @@ jobs:
           cp ffmpeg_bin                   app/resources/ffmpeg
           cp /tmp/whisper.cpp/build/bin/whisper-cli  app/resources/
           cp ggml-base.bin               app/resources/
-          # 拷贝 whisper.cpp 动态库
-          find /tmp/whisper.cpp/build -name "*.so" -exec cp {} app/resources/ \; 2>/dev/null || true
+          # 拷贝 whisper.cpp 动态库（包括版本号 symlink）
+          find /tmp/whisper.cpp/build -name "*.so*" -exec cp -a {} app/resources/ \; 2>/dev/null || true
           # 确保所有二进制可执行
           chmod +x app/resources/api_backend app/resources/ffmpeg app/resources/whisper-cli
 
@@ -354,15 +358,18 @@ jobs:
           cp app/resources/ffmpeg         cli-release/vidnote-cli/
           cp app/resources/whisper-cli    cli-release/vidnote-cli/
           cp app/resources/ggml-base.bin  cli-release/vidnote-cli/
-          # 拷贝 .so 动态库
-          cp app/resources/*.so           cli-release/vidnote-cli/ 2>/dev/null || true
+          # 拷贝 .so 动态库（包括版本号 symlink）
+          cp -a app/resources/*.so* cli-release/vidnote-cli/ 2>/dev/null || true
           cp .env.example                 cli-release/vidnote-cli/.env.example
-          # 创建启动脚本（自动设置 LD_LIBRARY_PATH）
+          # 创建启动脚本（自动设置 LD_LIBRARY_PATH，ffmpeg 自动检测）
           printf '#!/bin/bash\n' > cli-release/vidnote-cli/vidnote
-          printf '# VidNote CLI 启动脚本\n' >> cli-release/vidnote-cli/vidnote
           printf 'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n' >> cli-release/vidnote-cli/vidnote
           printf 'export LD_LIBRARY_PATH="$SCRIPT_DIR:$LD_LIBRARY_PATH"\n' >> cli-release/vidnote-cli/vidnote
-          printf 'export FFMPEG_PATH="$SCRIPT_DIR/ffmpeg"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'if "$SCRIPT_DIR/ffmpeg" -version >/dev/null 2>&1; then\n' >> cli-release/vidnote-cli/vidnote
+          printf '    export FFMPEG_PATH="$SCRIPT_DIR/ffmpeg"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'elif command -v ffmpeg >/dev/null 2>&1; then\n' >> cli-release/vidnote-cli/vidnote
+          printf '    export FFMPEG_PATH="$(command -v ffmpeg)"\n' >> cli-release/vidnote-cli/vidnote
+          printf 'fi\n' >> cli-release/vidnote-cli/vidnote
           printf 'export WHISPER_CPP_PATH="$SCRIPT_DIR/whisper-cli"\n' >> cli-release/vidnote-cli/vidnote
           printf 'export WHISPER_MODEL_PATH="$SCRIPT_DIR/ggml-base.bin"\n' >> cli-release/vidnote-cli/vidnote
           printf 'exec "$SCRIPT_DIR/api_backend" "$@"\n' >> cli-release/vidnote-cli/vidnote
