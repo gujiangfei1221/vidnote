@@ -1,15 +1,17 @@
 # ═══════════════════════════════════════════════════
 # 自动构建 & 发布 — macOS + Windows + Linux
 # 产物：6 种（3 平台 × Electron 桌面应用 + CLI 二进制包）
-# 触发条件：推送 v* 标签自动构建并发布；支持手动触发
+# 触发条件：推送 main 分支自动构建；支持手动触发
 # ═══════════════════════════════════════════════════
 
 name: Build Desktop App & CLI
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    # tags:
+    #   - 'v*'
   workflow_dispatch:   # 支持手动触发
 
 permissions:
