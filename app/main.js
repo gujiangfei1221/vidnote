@@ -152,7 +152,12 @@ function startPython() {
             if (!line.trim()) continue;
             try {
                 const msg = JSON.parse(line);
-                console.log(`[Python] ${msg.type}`);
+                // Log full details for key message types
+                if (['error', 'download_done', 'result', 'deps_result'].includes(msg.type)) {
+                    console.log(`[Python] ${msg.type}: ${JSON.stringify(msg)}`);
+                } else {
+                    console.log(`[Python] ${msg.type}`);
+                }
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('python-message', msg);
                 }
